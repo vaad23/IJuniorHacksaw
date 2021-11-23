@@ -6,8 +6,7 @@ namespace ConsoleApp
     {
         static void Main(string[] args)
         {
-            Clip clip = new Clip(10, 20);
-            Weapon weapon = new Weapon(10, 2, clip);
+            Weapon weapon = new Weapon(10, 2, 20, 10);
             Bot bot = new Bot(weapon);
             Player player = new Player(60);
             int shotsCount = 7;
@@ -24,8 +23,9 @@ namespace ConsoleApp
         public static int Clamp(int value, int minValue, int maxValue)
         {
             int number;
-
-            Exception.IsMinGreaterMax(minValue, nameof(minValue), maxValue, nameof(maxValue));
+            
+            if (minValue > maxValue)
+                throw new ArgumentOutOfRangeException(nameof(minValue) + " > " + nameof(maxValue));
 
             if (value < minValue)
                 number = minValue;
@@ -37,125 +37,71 @@ namespace ConsoleApp
             return number;
         }
     }
-
-    class Exception
-    {
-        public static void IsNegativeNumber(int number, string name)
-        {
-            if (number < 0)
-                throw new ArgumentOutOfRangeException(name);
-        }
-
-        public static void IsMinGreaterMax(int minValue, string minName, int maxValue, string maxName)
-        {
-            if (minValue > maxValue)
-                throw new ArgumentOutOfRangeException(minName + " > " + maxName);
-        }
-
-        public static void IsNull(object receivedObject, string name)
-        {
-            if (receivedObject == null)
-                throw new ArgumentNullException(name);
-        }
-    }
-
-    class Weapon : ICloneable
+    
+    class Weapon 
     {
         private readonly int _damage;
-        private readonly int _neededBulletsCount;
-        private readonly Clip _clip;
+        private readonly int _neededBullets;
+        private readonly int _maxBullets;
 
-        public Weapon(int damage, int neededBulletsCount, Clip clip)
+        private int _currentBullets = 0;
+
+        public Weapon(int damage, int neededBullets, int maxBullets, int currentBullets)
         {
-            Exception.IsNegativeNumber(damage, nameof(damage));
-            Exception.IsNegativeNumber(neededBulletsCount, nameof(neededBulletsCount));
-            Exception.IsNull(clip, nameof(clip));
+            if (damage < 0)
+                throw new ArgumentOutOfRangeException(nameof(damage));
+            if (neededBullets < 0)
+                throw new ArgumentOutOfRangeException(nameof(neededBullets));
+            if (maxBullets < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxBullets));
 
             _damage = damage;
-            _neededBulletsCount = neededBulletsCount;
-            _clip = (Clip)clip.Clone();
+            _neededBullets = neededBullets;
+            _maxBullets = maxBullets;
+            
+            AddBullets(currentBullets);
         }
 
-        protected Weapon(Weapon weapon) : this(weapon._damage, weapon._neededBulletsCount, weapon._clip) { }
+        public Weapon(Weapon weapon) : this(weapon._damage, weapon._neededBullets, weapon._maxBullets, weapon._currentBullets) { }
 
-        public bool CanFire => _neededBulletsCount <= _clip.CurrentBulletsCount;
+        public bool CanFire => _currentBullets >= _neededBullets;
 
-        public IReadOnlyClip Clip => _clip;
-
-        public virtual object Clone()
-        {
-            return new Weapon(this);
-        }
+        public int ShortageBullets => _maxBullets - _currentBullets;
 
         public void Fire(Player player)
         {
-            _clip.RemoveBullets(_neededBulletsCount);
+            RemoveBullets();
 
             player.TakeDamage(_damage);
         }
 
-        public void Reload(int bullets)
+        public void AddBullets(int bullets)
         {
-            _clip.AddBullets(bullets);
-        }
-    }
+            if (bullets < 0)
+                throw new ArgumentOutOfRangeException(nameof(bullets));
+            if (bullets > ShortageBullets)
+                throw new ArgumentOutOfRangeException(nameof(bullets) + " > " + nameof(ShortageBullets));
 
-    interface IReadOnlyClip
-    {
-        int MaxBulletsCount { get; }
-        int CurrentBulletsCount { get; }
-        int ShortageBulletsCount { get; }
-    }
-
-    class Clip : IReadOnlyClip, ICloneable
-    {
-        public Clip(int currentBulletsCount, int maxBulletsCount)
-        {
-            Exception.IsNegativeNumber(currentBulletsCount, nameof(currentBulletsCount));
-            Exception.IsNegativeNumber(maxBulletsCount, nameof(maxBulletsCount));
-            Exception.IsMinGreaterMax(currentBulletsCount, nameof(currentBulletsCount), maxBulletsCount, nameof(maxBulletsCount));
-
-            CurrentBulletsCount = currentBulletsCount;
-            MaxBulletsCount = maxBulletsCount;
+            _currentBullets += bullets;
         }
 
-        public Clip(Clip clip) : this(clip.CurrentBulletsCount, clip.MaxBulletsCount) { }
-
-        public int MaxBulletsCount { get; }
-
-        public int CurrentBulletsCount { get; private set; }
-
-        public int ShortageBulletsCount => MaxBulletsCount - CurrentBulletsCount;
-
-        public virtual object Clone()
+        private void RemoveBullets()
         {
-            return new Clip(this);
+            if (_neededBullets > _currentBullets)
+                throw new ArgumentOutOfRangeException(nameof(_neededBullets) + " > " + nameof(_currentBullets));
+
+            _currentBullets -= _neededBullets;
         }
-
-        public void AddBullets(int count)
-        {
-            Exception.IsNegativeNumber(count, nameof(count));
-            Exception.IsMinGreaterMax(count, nameof(count), ShortageBulletsCount, nameof(ShortageBulletsCount));
-
-            CurrentBulletsCount += count;
-        }
-
-        public void RemoveBullets(int count)
-        {
-            Exception.IsNegativeNumber(count, nameof(count));
-            Exception.IsMinGreaterMax(count, nameof(count), CurrentBulletsCount, nameof(CurrentBulletsCount));
-
-            CurrentBulletsCount -= count;
-        }
-    }
-
+    }    
+    
     class Player
     {
         private int _health;
 
         public Player(int health)
         {
-            Exception.IsNegativeNumber(health, nameof(health));
+            if (health < 0)
+                throw new ArgumentOutOfRangeException(nameof(health));
 
             _health = health;
         }
@@ -164,7 +110,8 @@ namespace ConsoleApp
 
         public void TakeDamage(int damage)
         {
-            Exception.IsNegativeNumber(damage, nameof(damage));
+            if (damage < 0)
+                throw new ArgumentOutOfRangeException(nameof(damage));
 
             int health = _health - damage;
 
@@ -179,29 +126,30 @@ namespace ConsoleApp
 
         public Bot(Weapon weapon)
         {
-            Exception.IsNull(weapon, nameof(weapon));
+            if (weapon == null)
+                throw new ArgumentNullException(nameof(weapon));
 
-            _weapon = (Weapon)weapon.Clone();
+            _weapon = new Weapon(weapon);
         }
 
         public void OnSeePlayer(Player player)
         {
-            if (_weapon.CanFire)
-                _weapon.Fire(player);
+            if (player.IsAlive)
+            {
+                if (_weapon.CanFire)
+                    _weapon.Fire(player);
 
-            if (_weapon.CanFire == false)
-                ReloadWeapon();
+                if (_weapon.CanFire == false)
+                    TryReloadWeapon();
+            }
         }
 
-        private void ReloadWeapon()
+        private void TryReloadWeapon()
         {
-            int shortageBulletsCount = _weapon.Clip.ShortageBulletsCount;
-            int newBullets = shortageBulletsCount;
+            int shortageBullets = _weapon.ShortageBullets;
 
-            if (shortageBulletsCount > 0)
-            {
-                _weapon.Reload(newBullets);
-            }
+            if (shortageBullets > 0)
+                _weapon.AddBullets(shortageBullets);
         }
     }
 }
