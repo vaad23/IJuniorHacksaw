@@ -22,19 +22,10 @@ namespace ConsoleApp
     {
         public static int Clamp(int value, int minValue, int maxValue)
         {
-            int number;
-            
             if (minValue > maxValue)
-                throw new ArgumentOutOfRangeException(nameof(minValue) + " > " + nameof(maxValue));
+                throw new ArgumentOutOfRangeException(nameof(minValue) + " > " + nameof(maxValue));            
 
-            if (value < minValue)
-                number = minValue;
-            else if (value > maxValue)
-                number = maxValue;
-            else
-                number = value;
-
-            return number;
+            return value < minValue ? minValue : value > maxValue ? maxValue : value;
         }
     }
     
@@ -62,9 +53,9 @@ namespace ConsoleApp
             AddBullets(currentBullets);
         }
 
-        public Weapon(Weapon weapon) : this(weapon._damage, weapon._neededBullets, weapon._maxBullets, weapon._currentBullets) { }
-
         public bool CanFire => _currentBullets >= _neededBullets;
+
+        public bool NeedReload => _neededBullets > _currentBullets;
 
         public int ShortageBullets => _maxBullets - _currentBullets;
 
@@ -75,7 +66,12 @@ namespace ConsoleApp
             player.TakeDamage(_damage);
         }
 
-        public void AddBullets(int bullets)
+        public void Reload()
+        {
+            AddBullets(ShortageBullets);
+        }
+
+        private void AddBullets(int bullets)
         {
             if (bullets < 0)
                 throw new ArgumentOutOfRangeException(nameof(bullets));
@@ -92,7 +88,7 @@ namespace ConsoleApp
 
             _currentBullets -= _neededBullets;
         }
-    }    
+    }
     
     class Player
     {
@@ -113,10 +109,7 @@ namespace ConsoleApp
             if (damage < 0)
                 throw new ArgumentOutOfRangeException(nameof(damage));
 
-            int health = _health - damage;
-
-            if (IsAlive)
-                _health = Math.Clamp(health, 0, int.MaxValue);
+            _health = Math.Clamp(_health - damage, 0, int.MaxValue);
         }
     }
 
@@ -126,30 +119,17 @@ namespace ConsoleApp
 
         public Bot(Weapon weapon)
         {
-            if (weapon == null)
-                throw new ArgumentNullException(nameof(weapon));
-
-            _weapon = new Weapon(weapon);
+            _weapon = weapon ?? throw new ArgumentNullException(nameof(weapon));
         }
 
         public void OnSeePlayer(Player player)
         {
             if (player.IsAlive)
-            {
                 if (_weapon.CanFire)
                     _weapon.Fire(player);
 
-                if (_weapon.CanFire == false)
-                    TryReloadWeapon();
-            }
-        }
-
-        private void TryReloadWeapon()
-        {
-            int shortageBullets = _weapon.ShortageBullets;
-
-            if (shortageBullets > 0)
-                _weapon.AddBullets(shortageBullets);
-        }
+            if (_weapon.NeedReload)
+                _weapon.Reload();
+        }        
     }
 }
